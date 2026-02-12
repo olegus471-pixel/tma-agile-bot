@@ -1,0 +1,135 @@
+ import { useEffect, useState } from 'react';\
+import { useLaunchParams } from '@telegram-apps/sdk-react';\
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';\
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';\
+import { Button } from '@/components/ui/button';\
+import { Badge } from '@/components/ui/badge';\
+// Список разрешённых Telegram ID — добавь свои реальные!\
+const allowedIds: number[] = [\
+  5652671788, // ← ТВОЙ ID (обязательно оставь или добавь других)\
+  // 987654321,\
+  // Добавь остальные ID сюда\
+];\
+function App() {\
+  const [user, setUser] = useState(null);\
+  const [isTelegram, setIsTelegram] = useState(false);\
+  const [isAuthorized, setIsAuthorized] = useState(null);\
+  // Хук вызывается на верхнем уровне — это правильно\
+  const lp = useLaunchParams();\
+  useEffect(() => {\
+    let isMounted = true;\
+    const checkTelegram = () => {\
+      if (!isMounted) return;\
+      // Проверка 1: window.Telegram.WebApp (самый точный в Telegram WebView)\
+      if (window.Telegram?.WebApp?.initDataUnsafe?.user) {\
+        const tgUser = window.Telegram.WebApp.initDataUnsafe.user;\
+        setUser(tgUser);\
+        setIsTelegram(true);\
+        setIsAuthorized(allowedIds.includes(tgUser.id));\
+        return;\
+      }\
+      // Проверка 2: через SDK (lp уже получен выше)\
+      if (lp?.initData?.user) {\
+        const sdkUser = lp.initData.user;\
+        setUser(sdkUser);\
+        setIsTelegram(true);\
+        setIsAuthorized(allowedIds.includes(sdkUser.id));\
+        return;\
+      }\
+      // Если ничего не нашлось — не Telegram\
+      setIsTelegram(false);\
+      setIsAuthorized(false);\
+    };\
+    // Проверяем сразу\
+    checkTelegram();\
+    // Повторяем каждые 300 мс (до 10 попыток = 3 секунды)\
+    const interval = setInterval(checkTelegram, 300);\
+    // Через 3 секунды останавливаем попытки\
+    const timeout = setTimeout(() => {\
+      if (isMounted && !isTelegram) {\
+        setIsTelegram(false);\
+        setIsAuthorized(false);\
+      }\
+    }, 3000);\
+    return () => {\
+      isMounted = false;\
+      clearInterval(interval);\
+      clearTimeout(timeout);\
+    };\
+  }, [lp]);\
+  // Пока проверяем — загрузка\
+  if (isAuthorized === null) {\
+    return (\
+      
+         
+Проверка доступа...
+       
+    );\
+  }\
+  // Не в Telegram\
+  if (!isTelegram) {\
+    return (\
+      
+         
+           
+            Откройте в Telegram\
+          
+           
+            Это приложение работает только внутри Telegram Mini App\
+          
+           
+            Запустите через вашего бота и нажмите кнопку Web App\
+          
+         
+       
+    );\
+  }\
+  // В Telegram, но не авторизован\
+  if (!isAuthorized) {\
+    return (\
+      
+         
+           
+            Доступ запрещён\
+          
+           
+            Это приложение доступно только для авторизованных пользователей.\
+          
+           
+            Ваш Telegram ID: {user?.id || 'не определён'}           
+           
+            Свяжитесь с администратором для добавления доступа.\
+          
+         
+       
+    );\
+  }\
+  // Авторизован — показываем дашборд\
+  return (\
+    
+       
+         
+           
+Migrall Agile
+           
+            {user.first_name} {user.last_name || ''} (@{user.username || 'нет'})\
+          
+         
+       
+                                        Kanban             Подачи             Суды             Календарь                                                                   \
+                  Доска задач\
+                  + Новая задача                                                                
+Перетаскивание задач будет здесь (drag & drop)
+                                                                                               Мои подачи                                               
+Список подач в Консульство, AIMA, Банк, IMT
+                                                                                               Суды                                               
+Статус судебных дел
+                                                                                               Календарь встреч                                               
+Записи и слоты
+                                                              
+        Migrall Mini App • Доступ только для авторизованных\
+      
+     
+  );\
+}\
+export default App;
