@@ -1,73 +1,206 @@
-# React + TypeScript + Vite
+# 📱 TMA CRM - Telegram Mini App для управления клиентами
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> Полнофункциональная CRM система в Telegram с интеграцией бота и Google Sheets
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🎯 Что это?
 
-## React Compiler
+Это полная CRM система, которая работает прямо в Telegram через Mini App. Пользователи могут управлять клиентами, отслеживать взаимодействия, видеть аналитику - все в одном месте.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Три компонента работают вместе:**
+1. 📱 **TMA Frontend** - React приложение (что видят пользователи)
+2. 🔧 **Backend API** - Сервер на Node.js (обрабатывает данные)
+3. 🤖 **CRM Bot** - Python бот (автоматизация и команды)
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## ✨ Что умеет система?
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Дашборд 📊
+- Видеть всех клиентов одним взглядом
+- Новые клиенты за день/неделю
+- Процент конверсии
+- Красивые графики динамики
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Клиенты 👥
+- Добавить нового клиента за пару кликов
+- Редактировать информацию
+- Искать по имени/телефону/email
+- Видеть всю историю общения
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Аналитика 📈
+- Воронка продаж
+- Откуда приходят клиенты
+- Графики за любой период
+
+### Real-time обновления 🔄
+- Новый клиент? Сразу видно всем
+- Кто-то изменил данные? Обновление моментально
+- Все через WebSocket
+
+---
+
+## 🚀 Как начать?
+
+### Что нужно установить:
+- Node.js 18+
+- Python 3.9+
+- PostgreSQL 14+
+
+### 3 простых шага:
+
+#### 1️⃣ Фронтенд (TMA)
+```bash
+cd tma-agile-bot
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+#### 2️⃣ Backend
+```bash
+cd backend-api
+npm install
+npm run dev
 ```
+
+#### 3️⃣ Бот
+```bash
+cd Clients
+pip install -r requirements.txt
+python bot.py
+```
+
+**Подробнее см. [INSTALLATION.md](./INSTALLATION.md)**
+
+---
+
+## 📁 Что внутри проекта?
+
+```
+📦 Проект
+├── 📱 tma-agile-bot/         # То, что видят пользователи
+│   ├── src/components/        # Все визуальные компоненты
+│   ├── src/hooks/            # React hooks
+│   └── src/lib/              # API клиент, утилиты
+│
+├── 🔧 backend-api/           # Сервер
+│   ├── src/routes/           # API endpoints
+│   ├── src/middleware/       # Аутентификация
+│   └── src/services/         # Бизнес-логика
+│
+└── 🤖 Clients/               # Python бот
+    ├── bot.py                # Главный файл бота
+    └── google_sheets/        # Интеграция с таблицами
+```
+
+---
+
+## 🔌 API (как общаются компоненты)
+
+### Клиенты
+```
+GET    /api/clients       # Получить всех
+POST   /api/clients       # Создать нового
+PUT    /api/clients/:id   # Обновить
+DELETE /api/clients/:id   # Удалить
+```
+
+### Аналитика
+```
+GET    /api/analytics/dashboard   # Данные для главной
+GET    /api/analytics/funnel      # Воронка продаж
+```
+
+### Синхронизация
+```
+POST   /api/sync/google-sheets    # Синхронизировать с таблицами
+```
+
+---
+
+## 📊 Google Sheets
+
+Все данные автоматически синхронизируются с Google таблицей:
+
+| ID | Имя | Телефон | Email | Статус | Источник |
+|----|-----|---------|-------|--------|----------|
+| 1  | Иван | +7... | ivan@... | Новый | Бот |
+
+**Синхронизация каждые 5 минут**
+
+---
+
+## 🔐 Безопасность
+
+Используется Telegram Web App Init Data:
+- Каждый запрос проверяется
+- Данные шифруются
+- Невозможно подделать
+
+---
+
+## 🎨 Дизайн
+
+Используем **shadcn/ui** - красивые компоненты:
+- Кнопки, карточки, формы
+- Диалоги, уведомления
+- Графики и таблицы
+
+Все адаптировано под Telegram тему (светлая/темная).
+
+---
+
+## 📚 Документация
+
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Как все устроено
+- **[INSTALLATION.md](./INSTALLATION.md)** - Пошаговая установка
+- **[API документация]** - Все endpoints
+
+---
+
+## 🛠️ Технологии
+
+**Frontend:**
+- React + TypeScript
+- Tailwind CSS
+- shadcn/ui
+- Socket.io (real-time)
+
+**Backend:**
+- Node.js + Express
+- PostgreSQL + Prisma
+- WebSocket
+
+**Bot:**
+- Python
+- python-telegram-bot
+- Google Sheets API
+
+---
+
+## 📝 Что дальше?
+
+### В планах:
+- [ ] Загрузка файлов
+- [ ] Календарь встреч
+- [ ] Напоминания
+- [ ] Экспорт в Excel
+- [ ] Темная тема
+- [ ] Поддержка команды
+
+---
+
+## 🤝 Вопросы?
+
+Создайте [Issue](https://github.com/olegus471-pixel/tma-agile-bot/issues) или напишите в Telegram
+
+---
+
+## 📄 Лицензия
+
+MIT - используйте как хотите!
+
+---
+
+**Сделано с ❤️ для управления клиентами**
