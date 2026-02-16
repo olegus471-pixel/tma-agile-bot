@@ -1,289 +1,177 @@
+// src/App.tsx
 import { useEffect, useState } from 'react';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import SortableTask from './SortableTask';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SDKProvider, useLaunchParams, useInitData } from '@telegram-apps/sdk-react';
+import { Dashboard } from './components/Dashboard';
+import { ClientList } from './components/ClientList';
+import { ClientCard } from './components/ClientCard';
+import { Analytics } from './components/Analytics';
+import { Toaster } from './components/ui/toaster';
+import { useWebSocket } from './hooks/useWebSocket';
 
-// Разрешённые ID (только эти пользователи увидят дашборд)
-const allowedIds: number[] = [
-  5652671788, // ← ТВОЙ ID
-  // добавь других админов сюда
-];
+const queryClient = new QueryClient();
 
-// Начальные колонки задач
-const initialColumns = {
-  new: [
-    { id: 'task-1', title: 'Подготовить документы для AIMA', priority: 'high' },
-    { id: 'task-2', title: 'Позвонить клиенту Иванову', priority: 'medium' },
-  ],
-  inProgress: [
-    { id: 'task-3', title: 'Проверить статус подачи в Консульство', priority: 'high' },
-    { id: 'task-4', title: 'Согласовать встречу', priority: 'low' },
-  ],
-  done: [
-    { id: 'task-5', title: 'Отправить договор', priority: 'medium' },
-  ],
-};
+type View = 'dashboard' | 'clients' | 'analytics';
 
-function App() {
-  const [user, setUser] = useState<any>(null);
-  const [isTelegram, setIsTelegram] = useState<boolean | null>(null);
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
-  const [columns, setColumns] = useState(initialColumns);
-  const [newTaskOpen, setNewTaskOpen] = useState(false);
-  const [newTask, setNewTask] = useState({
-    title: '',
-    priority: 'medium',
-    description: '',
-  });
+function AppContent() {
+  const [currentView, setCurrentView] = useState<View>('dashboard');
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const initData = useInitData();
+  const lp = useLaunchParams();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
+  // Подключаем WebSocket для real-time обновлений
+  useWebSocket();
 
   useEffect(() => {
-    const tg = (window as any).Telegram?.WebApp;
-
-    if (tg?.initDataUnsafe?.user) {
-      tg.ready();
+    // Инициализация Telegram Web App
+    if (window.Telegram?.WebApp) {
+      const tg = window.Telegram.WebApp;
+      
+      // Разворачиваем приложение на весь экран
       tg.expand();
-      const tgUser = tg.initDataUnsafe.user;
-      setUser(tgUser);
-      setIsTelegram(true);
-      setIsAuthorized(allowedIds.includes(tgUser.id));
-      return;
+      
+      // Включаем кнопку закрытия
+      tg.enableClosingConfirmation();
+      
+      // Применяем тему Telegram
+      document.documentElement.style.setProperty(
+        '--tg-theme-bg-color',
+        tg.themeParams.bg_color || '#ffffff'
+      );
+      document.documentElement.style.setProperty(
+        '--tg-theme-text-color',
+        tg.themeParams.text_color || '#000000'
+      );
+      
+      // Настраиваем главную кнопку
+      tg.MainButton.setText('Добавить клиента');
+      tg.MainButton.onClick(() => {
+        setCurrentView('clients');
+      });
+      
+      // Настраиваем кнопку назад
+      tg.BackButton.onClick(() => {
+        if (selectedClientId) {
+          setSelectedClientId(null);
+        } else if (currentView !== 'dashboard') {
+          setCurrentView('dashboard');
+        }
+      });
+      
+      // Показываем/скрываем кнопку назад
+      if (currentView !== 'dashboard' || selectedClientId) {
+        tg.BackButton.show();
+      } else {
+        tg.BackButton.hide();
+      }
+    }
+  }, [currentView, selectedClientId]);
+
+  // Обработка старт параметров (deep linking)
+  useEffect(() => {
+    if (lp.startParam) {
+      // Пример: открыть клиента по ID
+      // t.me/bot/app?startapp=client_123
+      const match = lp.startParam.match(/^client_(\d+)$/);
+      if (match) {
+        setSelectedClientId(Number(match[1]));
+        setCurrentView('clients');
+      }
+    }
+  }, [lp.startParam]);
+
+  const handleOpenClient = (clientId: number) => {
+    setSelectedClientId(clientId);
+  };
+
+  const handleCloseClient = () => {
+    setSelectedClientId(null);
+  };
+
+  // Рендерим выбранную вкладку
+  const renderView = () => {
+    if (selectedClientId) {
+      return (
+        <ClientCard 
+          clientId={selectedClientId} 
+          onClose={handleCloseClient}
+        />
+      );
     }
 
-    // Если Telegram.WebApp не найден — это не Telegram (или кэш/ошибка)
-    setIsTelegram(false);
-    setIsAuthorized(false);
-  }, []);
-
-  const handleDragEnd = (event) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeContainer = findContainer(active.id);
-    const overContainer = findContainer(over.id);
-
-    if (!activeContainer || !overContainer || activeContainer === overContainer) return;
-
-    setColumns((prev) => {
-      const activeItems = prev[activeContainer];
-      const overItems = prev[overContainer];
-
-      const activeIndex = activeItems.findIndex((item) => item.id === active.id);
-      const overIndex = overItems.findIndex((item) => item.id === over.id);
-
-      const newActiveItems = activeItems.filter((item) => item.id !== active.id);
-      const newOverItems = [...overItems];
-
-      newOverItems.splice(overIndex, 0, activeItems[activeIndex]);
-
-      return {
-        ...prev,
-        [activeContainer]: newActiveItems,
-        [overContainer]: newOverItems,
-      };
-    });
+    switch (currentView) {
+      case 'dashboard':
+        return <Dashboard onNavigate={setCurrentView} />;
+      case 'clients':
+        return <ClientList onOpenClient={handleOpenClient} />;
+      case 'analytics':
+        return <Analytics />;
+      default:
+        return <Dashboard onNavigate={setCurrentView} />;
+    }
   };
-
-  const findContainer = (id) => {
-    if (id in columns) return id;
-    return Object.keys(columns).find((key) =>
-      columns[key].some((item) => item.id === id)
-    );
-  };
-
-  const addNewTask = () => {
-    if (!newTask.title.trim()) return;
-
-    const newId = `task-${Date.now()}`;
-    const newTaskObj = {
-      id: newId,
-      title: newTask.title,
-      priority: newTask.priority,
-      description: newTask.description,
-    };
-
-    setColumns((prev) => ({
-      ...prev,
-      new: [...prev.new, newTaskObj],
-    }));
-
-    setNewTask({ title: '', priority: 'medium', description: '' });
-    setNewTaskOpen(false);
-  };
-
-  // Экраны загрузки и ошибок
-  if (isTelegram === null) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-400">Загрузка...</div>;
-  }
-
-  if (!isTelegram) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 text-center">
-        <div>
-          <h2 className="text-xl font-bold mb-2">Откройте в Telegram</h2>
-          <p className="text-gray-500">Приложение доступно только через официального бота.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthorized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-red-50 p-6 text-center">
-        <div className="bg-white p-8 rounded-xl shadow-sm border border-red-100">
-          <h2 className="text-red-600 font-bold text-xl mb-4">Доступ запрещён</h2>
-          <p className="text-sm text-gray-500">Ваш ID: {user?.id || 'не определён'}</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
-      <header className="bg-white shadow-sm p-4 border-b">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-indigo-700">Migrall Agile</h1>
-          <div className="text-sm text-gray-600">
-            {user?.first_name || 'Пользователь'} (@{user?.username || 'нет'})
-          </div>
+    <div className="min-h-screen bg-background">
+      {/* Навигация */}
+      <nav className="sticky top-0 z-50 bg-background border-b">
+        <div className="flex items-center justify-around h-14">
+          <button
+            onClick={() => setCurrentView('dashboard')}
+            className={`flex-1 flex flex-col items-center justify-center h-full ${
+              currentView === 'dashboard' ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span className="text-xs mt-1">Главная</span>
+          </button>
+          
+          <button
+            onClick={() => setCurrentView('clients')}
+            className={`flex-1 flex flex-col items-center justify-center h-full ${
+              currentView === 'clients' ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <span className="text-xs mt-1">Клиенты</span>
+          </button>
+          
+          <button
+            onClick={() => setCurrentView('analytics')}
+            className={`flex-1 flex flex-col items-center justify-center h-full ${
+              currentView === 'analytics' ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <span className="text-xs mt-1">Аналитика</span>
+          </button>
         </div>
-      </header>
+      </nav>
 
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
-        <Tabs defaultValue="kanban" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6">
-            <TabsTrigger value="kanban">Kanban</TabsTrigger>
-            <TabsTrigger value="submissions">Подачи</TabsTrigger>
-            <TabsTrigger value="courts">Суды</TabsTrigger>
-            <TabsTrigger value="calendar">Календарь</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="kanban">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Kanban доска</h2>
-              <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
-                <DialogTrigger asChild>
-                  <Button>+ Новая задача</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Создать новую задачу</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="title">Заголовок</Label>
-                      <Input
-                        id="title"
-                        value={newTask.title}
-                        onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                        placeholder="Что нужно сделать?"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="priority">Приоритет</Label>
-                      <Select
-                        value={newTask.priority}
-                        onValueChange={(v) => setNewTask({ ...newTask, priority: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="high">Высокий 🔥</SelectItem>
-                          <SelectItem value="medium">Средний ⚡</SelectItem>
-                          <SelectItem value="low">Низкий 🟢</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Описание</Label>
-                      <Textarea
-                        id="description"
-                        value={newTask.description}
-                        onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                        placeholder="Детали задачи..."
-                      />
-                    </div>
-                    <Button className="w-full" onClick={addNewTask} disabled={!newTask.title.trim()}>
-                      Добавить на доску
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              modifiers={[restrictToVerticalAxis]}
-              onDragEnd={handleDragEnd}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {Object.entries(columns).map(([columnId, columnTasks]) => (
-                  <Card key={columnId} className="bg-white">
-                    <CardHeader>
-                      <CardTitle className="capitalize flex items-center justify-between">
-                        {columnId === 'new' ? 'Новые' :
-                         columnId === 'inProgress' ? 'В работе' : 'Готово'}
-                        <Badge variant="secondary">{columnTasks.length}</Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <SortableContext
-                        items={columnTasks.map(t => t.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <div className="space-y-3 min-h-[200px]">
-                          {columnTasks.map(task => (
-                            <SortableTask key={task.id} task={task} />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </DndContext>
-          </TabsContent>
-
-          {/* Остальные вкладки — заглушки */}
-          <TabsContent value="submissions"><Card className="p-8 text-center text-gray-400 text-sm">Здесь будут ваши подачи...</Card></TabsContent>
-          <TabsContent value="courts"><Card className="p-8 text-center text-gray-400 text-sm">Статус судебных дел...</Card></TabsContent>
-          <TabsContent value="calendar"><Card className="p-8 text-center text-gray-400 text-sm">Календарь встреч...</Card></TabsContent>
-        </Tabs>
+      {/* Основной контент */}
+      <main className="pb-safe">
+        {renderView()}
       </main>
 
-      <footer className="bg-white border-t p-4 text-center text-sm text-gray-500">
-        Migrall Mini App • Доступ только для авторизованных
-      </footer>
+      {/* Уведомления */}
+      <Toaster />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SDKProvider acceptCustomStyles>
+        <AppContent />
+      </SDKProvider>
+    </QueryClientProvider>
   );
 }
 
